@@ -57,3 +57,5 @@ app.get('/health', (_req, res) =>
 app.use('/api', routes);
 app.use(notFound);
 app.use(errorHandler);
+
+export default app;
