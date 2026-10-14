@@ -9,11 +9,14 @@ import { env } from './config/env.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
 export const app = express();
+const helmetMiddleware = helmetModule.default as unknown as (
+  options: { crossOriginResourcePolicy: { policy: 'cross-origin' } },
+) => express.RequestHandler;
 
 app.set('trust proxy', 1);
 
 app.use(
-  helmetModule.default({
+  helmetMiddleware({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }),
 );
