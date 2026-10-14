@@ -58,4 +58,9 @@ app.use('/api', routes);
 app.use(notFound);
 app.use(errorHandler);
 
-export default app;
+export default function handler(
+  req: express.Request,
+  res: express.Response,
+): void {
+  app(req, res);
+}
