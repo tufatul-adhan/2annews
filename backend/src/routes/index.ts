@@ -1,0 +1,48 @@
+﻿import { Router, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
+import multer from 'multer';
+import path from 'node:path';
+import crypto from 'node:crypto';
+import rateLimit from 'express-rate-limit';
+import { authenticate as authenticateMiddleware, optionalAuthenticate as optionalAuthenticateMiddleware, authorize as authorizeMiddleware } from '../middleware/auth.js';
+import * as auth from '../controllers/auth.controller.js';
+import * as articles from '../controllers/articles.controller.js';
+import * as football from '../controllers/football.controller.js';
+import * as system from '../controllers/system.controller.js';
+import * as media from '../controllers/media.controller.js';
+import { env } from '../config/env.js';
+import { normalizeImageMimeType } from '../utils/image.js';
+
+const router = Router();
+const asyncHandler = (handler: (req: Request, res: Response, next: NextFunction) => unknown): RequestHandler => (req, res, next) => { Promise.resolve(handler(req, res, next)).catch(next); };
+const requireAuth = asyncHandler(authenticateMiddleware);
+const optionalAuth = asyncHandler(optionalAuthenticateMiddleware);
+const chatWriteLimit = rateLimit({ windowMs: 60_000, max: 10, standardHeaders: true, legacyHeaders: false });
+const authorizeAsync = (...permissions: string[]) => asyncHandler(authorizeMiddleware(...permissions));
+const write = authorizeAsync('articles.create'); const manageFootball = authorizeAsync('clubs.manage', 'players.manage', 'leagues.manage', 'matches.manage', 'standings.manage', 'transfers.manage');
+const storage = multer.diskStorage({ destination: (_req, _file, cb) => cb(null, env.uploadDir), filename: (_req, file, cb) => cb(null, `${Date.now()}-${crypto.randomBytes(8).toString('hex')}${path.extname(file.originalname).toLowerCase()}`) });
+const imageFileFilter: multer.Options['fileFilter'] = (_req, file, cb) => {
+  const validMime = ['image/jpeg', 'image/png', 'image/webp'].includes(normalizeImageMimeType(file.mimetype));
+  const validExtension = ['.jpg', '.jpeg', '.jfif', '.png', '.webp'].includes(path.extname(file.originalname).toLowerCase());
+  if (!validMime || !validExtension) return cb(new multer.MulterError('LIMIT_UNEXPECTED_FILE', file.fieldname));
+  cb(null, true);
+};
+const upload = multer({ storage, limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFileFilter });
+const uploadArticleImage = multer({ storage: multer.memoryStorage(), limits: { fileSize: 5 * 1024 * 1024 }, fileFilter: imageFileFilter });
+
+router.post('/auth/register', asyncHandler(auth.register)); router.post('/auth/login', asyncHandler(auth.login)); router.post('/auth/logout', requireAuth, (_req, res) => res.json({ success: true, message: 'Logout successful', data: null })); router.get('/auth/me', requireAuth, asyncHandler(auth.me)); router.put('/auth/profile', requireAuth, asyncHandler(auth.updateProfile)); router.put('/auth/password', requireAuth, asyncHandler(auth.updatePassword));
+router.get('/articles', optionalAuth, asyncHandler(articles.listArticles)); router.get('/articles/trending', asyncHandler(articles.trending)); router.get('/articles/:id/image', asyncHandler(articles.getArticleImage)); router.post('/articles/:id/image', requireAuth, write, uploadArticleImage.single('file'), asyncHandler(articles.saveArticleImage)); router.get('/articles/:id', optionalAuth, asyncHandler(articles.getArticle)); router.post('/articles', requireAuth, write, uploadArticleImage.single('image'), asyncHandler(articles.createArticle)); router.put('/articles/:id', requireAuth, asyncHandler(articles.updateArticle)); router.delete('/articles/:id', requireAuth, asyncHandler(articles.deleteArticle));
+router.post('/articles/:id/:action(submit|approve|reject|revision|publish|schedule|archive)', requireAuth, asyncHandler(articles.transition)); router.post('/articles/:id/like', requireAuth, asyncHandler(articles.toggleLike)); router.delete('/articles/:id/like', requireAuth, asyncHandler(articles.toggleLike)); router.put('/articles/:id/rating', requireAuth, asyncHandler(articles.rateArticle)); router.post('/articles/:id/bookmark', requireAuth, asyncHandler(articles.toggleBookmark)); router.delete('/articles/:id/bookmark', requireAuth, asyncHandler(articles.toggleBookmark)); router.get('/bookmarks', requireAuth, asyncHandler(articles.bookmarks));
+router.get('/categories', asyncHandler(system.listCategories)); router.post('/categories', requireAuth, authorizeAsync('articles.create'), asyncHandler(system.createCategory)); router.put('/categories/:id', requireAuth, authorizeAsync('articles.update'), asyncHandler(system.updateCategory)); router.delete('/categories/:id', requireAuth, authorizeAsync('articles.delete'), asyncHandler(system.deleteCategory)); router.get('/tags', asyncHandler(system.listTags)); router.post('/tags', requireAuth, authorizeAsync('articles.create'), asyncHandler(system.createTag)); router.delete('/tags/:id', requireAuth, authorizeAsync('articles.delete'), asyncHandler(system.deleteTag));
+router.get('/clubs', asyncHandler(football.listClubs)); router.get('/clubs/:slug', asyncHandler(football.clubDetail)); router.post('/clubs', requireAuth, manageFootball, asyncHandler(football.createClub)); router.put('/clubs/:id', requireAuth, manageFootball, asyncHandler(football.updateClub)); router.delete('/clubs/:id', requireAuth, manageFootball, asyncHandler(football.deleteClub));
+router.get('/players', asyncHandler(football.listPlayers)); router.get('/players/:slug', asyncHandler(football.playerDetail)); router.post('/players', requireAuth, manageFootball, asyncHandler(football.createPlayer)); router.put('/players/:id', requireAuth, manageFootball, asyncHandler(football.updatePlayer)); router.delete('/players/:id', requireAuth, manageFootball, asyncHandler(football.deletePlayer));
+router.get('/leagues', asyncHandler(football.listLeagues)); router.get('/leagues/:slug', asyncHandler(football.leagueDetail)); router.post('/leagues', requireAuth, manageFootball, asyncHandler(football.createLeague)); router.put('/leagues/:id', requireAuth, manageFootball, asyncHandler(football.updateLeague)); router.delete('/leagues/:id', requireAuth, manageFootball, asyncHandler(football.deleteLeague));
+router.get('/matches', asyncHandler(football.listMatches)); router.get('/matches/:id', asyncHandler(football.getMatch)); router.post('/matches', requireAuth, manageFootball, asyncHandler(football.createMatch)); router.put('/matches/:id', requireAuth, manageFootball, asyncHandler(football.updateMatch)); router.delete('/matches/:id', requireAuth, manageFootball, asyncHandler(football.deleteMatch)); router.get('/standings/:leagueId', asyncHandler(football.standings)); router.post('/standings', requireAuth, manageFootball, asyncHandler(football.createStanding)); router.put('/standings/:id', requireAuth, manageFootball, asyncHandler(football.updateStanding));
+router.get('/transfers', asyncHandler(football.listTransfers)); router.post('/transfers', requireAuth, manageFootball, asyncHandler(football.createTransfer)); router.put('/transfers/:id', requireAuth, manageFootball, asyncHandler(football.updateTransfer)); router.delete('/transfers/:id', requireAuth, manageFootball, asyncHandler(football.deleteTransfer));
+router.get('/chat/messages', optionalAuth, asyncHandler(system.listChatMessages)); router.post('/chat/messages', optionalAuth, chatWriteLimit, asyncHandler(system.createChatMessage));
+router.get('/comments', optionalAuth, asyncHandler(system.listComments)); router.post('/comments', optionalAuth, asyncHandler(system.createComment)); router.post('/comments/:id/:action(approve|reject|spam)', requireAuth, authorizeAsync('comments.moderate'), asyncHandler(system.moderateComment)); router.delete('/comments/:id', requireAuth, authorizeAsync('comments.moderate'), asyncHandler(system.deleteComment));
+router.get('/notifications', requireAuth, asyncHandler(system.notifications)); router.post('/notifications/read-all', requireAuth, asyncHandler(system.readAllNotifications)); router.post('/notifications/:id/read', requireAuth, asyncHandler(system.readNotification));
+router.get('/analytics/overview', requireAuth, authorizeAsync('analytics.view'), asyncHandler(system.overview)); router.get('/analytics/views', requireAuth, authorizeAsync('analytics.view'), asyncHandler(system.analytics)); router.get('/analytics/articles', requireAuth, authorizeAsync('analytics.view'), asyncHandler(system.analytics)); router.get('/analytics/engagement', requireAuth, authorizeAsync('analytics.view'), asyncHandler(system.analytics)); router.get('/activity-logs', requireAuth, authorizeAsync('analytics.view'), asyncHandler(system.activityLogs));
+router.get('/settings', asyncHandler(system.settings)); router.put('/settings', requireAuth, authorizeAsync('settings.manage'), asyncHandler(system.updateSettings)); router.get('/roles', requireAuth, authorizeAsync('users.read'), asyncHandler(system.listRoles)); router.get('/users', requireAuth, authorizeAsync('users.read'), asyncHandler(system.listUsers)); router.post('/users', requireAuth, authorizeAsync('users.create'), asyncHandler(system.createUser)); router.put('/users/:id', requireAuth, authorizeAsync('users.update'), asyncHandler(system.updateUser)); router.delete('/users/:id', requireAuth, authorizeAsync('users.delete'), asyncHandler(system.deleteUser));
+router.get('/media', requireAuth, authorizeAsync('articles.create'), asyncHandler(media.listMedia)); router.post('/media', requireAuth, authorizeAsync('articles.create'), upload.single('file'), asyncHandler(media.uploadMedia)); router.delete('/media/:id', requireAuth, authorizeAsync('articles.delete'), asyncHandler(media.deleteMedia));
+export default router;
+

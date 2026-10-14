@@ -1,0 +1,413 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  BANNED
+}
+enum ArticleStatus {
+  DRAFT
+  SUBMITTED
+  UNDER_REVIEW
+  REVISION
+  APPROVED
+  SCHEDULED
+  PUBLISHED
+  REJECTED
+  ARCHIVED
+}
+enum ContentStatus {
+  ACTIVE
+  INACTIVE
+}
+enum Position {
+  GOALKEEPER
+  DEFENDER
+  MIDFIELDER
+  FORWARD
+}
+enum MatchStatus {
+  SCHEDULED
+  LIVE
+  FINISHED
+  POSTPONED
+  CANCELLED
+}
+enum TransferType {
+  PERMANENT
+  LOAN
+  FREE_TRANSFER
+  RETURN_FROM_LOAN
+}
+enum TransferStatus {
+  RUMOUR
+  NEGOTIATION
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+}
+enum CommentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  SPAM
+}
+
+model Role {
+  id Int @id @default(autoincrement())
+  name String @unique
+  users User[]
+  permissions RolePermission[]
+  createdAt DateTime @default(now())
+}
+model Permission {
+  id Int @id @default(autoincrement())
+  name String @unique
+  roles RolePermission[]
+}
+model RolePermission {
+  roleId Int
+  permissionId Int
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+model User {
+  id Int @id @default(autoincrement())
+  name String
+  email String @unique
+  password String
+  avatar String?
+  bio String? @db.Text
+  roleId Int
+  role Role @relation(fields: [roleId], references: [id])
+  status UserStatus @default(ACTIVE)
+  articles Article[]
+  comments Comment[]
+  chatMessages ChatMessage[]
+  likes Like[]
+  ratings Rating[]
+  bookmarks Bookmark[]
+  notifications Notification[]
+  media Media[]
+  revisions ArticleRevision[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([roleId, status])
+}
+model Category {
+  id Int @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+  description String? @db.Text
+  image String?
+  status ContentStatus @default(ACTIVE)
+  articles Article[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Tag {
+  id Int @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+  articles ArticleTag[]
+  createdAt DateTime @default(now())
+}
+model Club {
+  id Int @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+  shortName String
+  logo String?
+  country String
+  continent String?
+  city String?
+  stadium String?
+  foundedYear Int?
+  description String? @db.Text
+  website String?
+  status ContentStatus @default(ACTIVE)
+  players Player[]
+  homeMatches Match[] @relation("homeClub")
+  awayMatches Match[] @relation("awayClub")
+  standings Standing[]
+  articleLinks Article[] @relation("articleClub")
+  fromTransfers Transfer[] @relation("fromClub")
+  toTransfers Transfer[] @relation("toClub")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([country, status])
+}
+model Player {
+  id Int @id @default(autoincrement())
+  name String
+  slug String @unique
+  photo String?
+  nationality String
+  dateOfBirth DateTime?
+  position Position
+  shirtNumber Int?
+  clubId Int?
+  club Club? @relation(fields: [clubId], references: [id], onDelete: SetNull)
+  bio String? @db.Text
+  status ContentStatus @default(ACTIVE)
+  articles Article[] @relation("articlePlayer")
+  transfers Transfer[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([clubId, position])
+}
+model League {
+  id Int @id @default(autoincrement())
+  name String @unique
+  slug String @unique
+  country String
+  logo String?
+  season String
+  description String? @db.Text
+  status ContentStatus @default(ACTIVE)
+  matches Match[]
+  standings Standing[]
+  articles Article[] @relation("articleLeague")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Article {
+  id Int @id @default(autoincrement())
+  authorId Int
+  categoryId Int
+  title String
+  slug String @unique
+  excerpt String @db.Text
+  content String @db.Text
+  thumbnail String?
+  status ArticleStatus @default(DRAFT)
+  rejectionReason String? @db.Text
+  seoTitle String?
+  seoDescription String? @db.Text
+  viewsCount Int @default(0)
+  publishedAt DateTime?
+  scheduledAt DateTime?
+  clubId Int?
+  playerId Int?
+  leagueId Int?
+  author User @relation(fields: [authorId], references: [id])
+  category Category @relation(fields: [categoryId], references: [id])
+  club Club? @relation("articleClub", fields: [clubId], references: [id], onDelete: SetNull)
+  player Player? @relation("articlePlayer", fields: [playerId], references: [id], onDelete: SetNull)
+  league League? @relation("articleLeague", fields: [leagueId], references: [id], onDelete: SetNull)
+  tags ArticleTag[]
+  revisions ArticleRevision[]
+  image ArticleImage?
+  comments Comment[]
+  likes Like[]
+  ratings Rating[]
+  bookmarks Bookmark[]
+  views ArticleView[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, publishedAt])
+  @@index([categoryId, createdAt])
+  @@index([clubId, playerId, leagueId])
+}
+model ArticleImage {
+  id Int @id @default(autoincrement())
+  articleId Int @unique
+  mimeType String
+  data Bytes @db.ByteA
+  altText String
+  credit String?
+  sourceUrl String?
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model ArticleTag {
+  articleId Int
+  tagId Int
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tag Tag @relation(fields: [tagId], references: [id], onDelete: Cascade)
+  @@id([articleId, tagId])
+}
+model ArticleRevision {
+  id Int @id @default(autoincrement())
+  articleId Int
+  userId Int
+  title String
+  content String @db.Text
+  revisionNote String? @db.Text
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+}
+model Match {
+  id Int @id @default(autoincrement())
+  leagueId Int
+  homeClubId Int
+  awayClubId Int
+  homeScore Int?
+  awayScore Int?
+  matchDate DateTime
+  venue String?
+  status MatchStatus @default(SCHEDULED)
+  season String
+  league League @relation(fields: [leagueId], references: [id])
+  homeClub Club @relation("homeClub", fields: [homeClubId], references: [id])
+  awayClub Club @relation("awayClub", fields: [awayClubId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([leagueId, matchDate])
+  @@index([homeClubId, awayClubId])
+}
+model Standing {
+  id Int @id @default(autoincrement())
+  leagueId Int
+  clubId Int
+  season String
+  played Int @default(0)
+  won Int @default(0)
+  drawn Int @default(0)
+  lost Int @default(0)
+  goalsFor Int @default(0)
+  goalsAgainst Int @default(0)
+  goalDifference Int @default(0)
+  points Int @default(0)
+  position Int
+  league League @relation(fields: [leagueId], references: [id])
+  club Club @relation(fields: [clubId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([leagueId, clubId, season])
+  @@index([leagueId, season, position])
+}
+model Transfer {
+  id Int @id @default(autoincrement())
+  playerId Int
+  fromClubId Int?
+  toClubId Int?
+  transferFee Decimal? @db.Decimal(15, 2)
+  currency String @default("EUR")
+  transferDate DateTime
+  transferType TransferType
+  status TransferStatus @default(RUMOUR)
+  description String? @db.Text
+  player Player @relation(fields: [playerId], references: [id])
+  fromClub Club? @relation("fromClub", fields: [fromClubId], references: [id], onDelete: SetNull)
+  toClub Club? @relation("toClub", fields: [toClubId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([status, transferDate])
+}
+model Comment {
+  id Int @id @default(autoincrement())
+  articleId Int
+  userId Int?
+  parentId Int?
+  name String?
+  email String?
+  content String @db.Text
+  status CommentStatus @default(PENDING)
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  parent Comment? @relation("commentReplies", fields: [parentId], references: [id], onDelete: SetNull)
+  replies Comment[] @relation("commentReplies")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([articleId, status])
+}
+model ChatMessage {
+  id Int @id @default(autoincrement())
+  userId Int?
+  name String
+  content String @db.VarChar(500)
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  createdAt DateTime @default(now())
+  @@index([createdAt])
+}
+model Like {
+  articleId Int
+  userId Int
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@id([articleId, userId])
+}
+model Rating {
+  articleId Int
+  userId Int
+  value Int
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@id([articleId, userId])
+  @@index([articleId, value])
+}
+model Bookmark {
+  articleId Int
+  userId Int
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@id([articleId, userId])
+}
+model ArticleView {
+  id Int @id @default(autoincrement())
+  articleId Int
+  userId Int?
+  ipAddress String?
+  userAgent String?
+  viewedAt DateTime @default(now())
+  article Article @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  @@index([articleId, viewedAt])
+  @@index([ipAddress, viewedAt])
+}
+model Media {
+  id Int @id @default(autoincrement())
+  userId Int
+  filename String @unique
+  originalName String
+  filepath String
+  mimeType String
+  size Int
+  altText String?
+  user User @relation(fields: [userId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+model Notification {
+  id Int @id @default(autoincrement())
+  userId Int
+  type String
+  title String
+  message String @db.Text
+  data Json?
+  readAt DateTime?
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  @@index([userId, readAt])
+}
+model ActivityLog {
+  id Int @id @default(autoincrement())
+  userId Int?
+  action String
+  entity String
+  description String @db.Text
+  ipAddress String?
+  userAgent String?
+  createdAt DateTime @default(now())
+  @@index([action, createdAt])
+}
+model Setting {
+  id Int @id @default(autoincrement())
+  key String @unique
+  value String @db.Text
+  updatedAt DateTime @updatedAt
+}
