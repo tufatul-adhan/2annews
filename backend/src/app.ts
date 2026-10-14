@@ -1,7 +1,7 @@
 
 import express from 'express';
 import cors from 'cors';
-import helmet from 'helmet';
+import * as helmetModule from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import routes from './routes/index.js';
@@ -13,7 +13,7 @@ export const app = express();
 app.set('trust proxy', 1);
 
 app.use(
-  helmet({
+  helmetModule.default({
     crossOriginResourcePolicy: { policy: 'cross-origin' },
   }),
 );
