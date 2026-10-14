@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # 2anNews
 
 2anNews is a football news CMS with a React/Vite public site and a Node.js/Express REST API. It uses Prisma with PostgreSQL; PHP and Laravel are not used.
@@ -87,3 +88,7 @@ Menu Klub menggunakan 2.822 entri dari [direktori klub OpenFootball](https://git
 ## Deployment
 
 Deployment configuration and the Neon backup/import procedure are documented in [DEPLOYMENT.md](./DEPLOYMENT.md). The Render Free filesystem is ephemeral, so media uploaded to `backend/uploads` is not persistent across service restarts; article images stored in PostgreSQL remain persistent.
+=======
+# 2annews
+berita bola
+>>>>>>> 38500eb4cf7a9758d50e218af313faf387b1eb06
