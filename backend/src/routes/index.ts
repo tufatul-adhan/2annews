@@ -2,7 +2,7 @@
 import multer from 'multer';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import rateLimit from 'express-rate-limit';
+import { rateLimit } from 'express-rate-limit';
 import { authenticate as authenticateMiddleware, optionalAuthenticate as optionalAuthenticateMiddleware, authorize as authorizeMiddleware } from '../middleware/auth.js';
 import * as auth from '../controllers/auth.controller.js';
 import * as articles from '../controllers/articles.controller.js';
