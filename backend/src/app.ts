@@ -1,13 +1,11 @@
 import express from 'express';
 import cors from 'cors';
-import * as helmetModule from 'helmet';
+import helmet from 'helmet';
 import { rateLimit } from 'express-rate-limit';
 import path from 'node:path';
 import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { errorHandler, notFound } from './middleware/error.js';
-
-const helmet = helmetModule.default;
 
 export const app = express();
 
