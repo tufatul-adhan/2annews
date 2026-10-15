@@ -7,12 +7,18 @@ import routes from './routes/index.js';
 import { env } from './config/env.js';
 import { errorHandler, notFound } from './middleware/error.js';
 
+// Vercel's TypeScript resolver can treat Helmet's default export as a module
+// namespace. At runtime Helmet 8's default export is the middleware factory.
+const helmetMiddleware = helmet as unknown as (options: {
+  crossOriginResourcePolicy: { policy: 'cross-origin' };
+}) => express.RequestHandler;
+
 export const app = express();
 
 app.set('trust proxy', 1);
 
 app.use(
-  helmet({
+  helmetMiddleware({
     crossOriginResourcePolicy: { policy: 'cross-origin' }
   })
 );
